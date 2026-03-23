@@ -60,21 +60,57 @@ const elements = {
 // 初期化
 // =============================================================================
 
-async function initCamera() {
+async function getAvailableCameras() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return devices.filter(d => d.kind === "videoinput");
+}
+
+async function initCamera(deviceId = null) {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: 640, height: 480 }
-    });
+    const constraints = {
+      video: deviceId
+        ? { deviceId: { exact: deviceId }, width: 640, height: 480 }
+        : { facingMode: "environment", width: 640, height: 480 }
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = stream;
     await video.play();
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+    
+    await populateCameraSelect();
     return true;
   } catch (error) {
     console.error("カメラの起動に失敗:", error);
     updateGuide("カメラの起動に失敗しました。権限を確認してください。", "error");
     return false;
   }
+}
+
+async function populateCameraSelect() {
+  const select = document.getElementById("cameraSelect");
+  if (!select) return;
+  
+  const cameras = await getAvailableCameras();
+  select.innerHTML = "";
+  
+  cameras.forEach((cam, i) => {
+    const option = document.createElement("option");
+    option.value = cam.deviceId;
+    option.textContent = cam.label || `カメラ ${i + 1}`;
+    select.appendChild(option);
+  });
+  
+  const currentTrack = video.srcObject?.getVideoTracks()[0];
+  if (currentTrack) {
+    const currentId = currentTrack.getSettings().deviceId;
+    select.value = currentId;
+  }
+  
+  select.onchange = async () => {
+    video.srcObject?.getTracks().forEach(t => t.stop());
+    await initCamera(select.value);
+  };
 }
 
 async function initPoseLandmarker() {

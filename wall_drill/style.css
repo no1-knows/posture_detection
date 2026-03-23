@@ -143,6 +143,21 @@ main {
   color: #ef4444;
 }
 
+.camera-select-container {
+  margin-top: 1rem;
+  color: #94a3b8;
+}
+
+.camera-select-container select {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: 1px solid #475569;
+  background-color: #334155;
+  color: #fff;
+  cursor: pointer;
+}
+
 footer {
   text-align: center;
   padding: 1rem;
