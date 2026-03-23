@@ -277,6 +277,14 @@ function judgeAlignment(head, hip, ankle) {
   };
 }
 
+function computeBodyAngle(head, ankle) {
+  const dx = head.x - ankle.x;
+  const dy = ankle.y - head.y;
+  const radians = Math.atan2(dx, dy);
+  const degrees = radians * (180 / Math.PI);
+  return degrees;
+}
+
 // =============================================================================
 // ガイドメッセージ
 // =============================================================================
@@ -369,12 +377,19 @@ function drawOverlay(landmarks) {
 // UI更新
 // =============================================================================
 
-function updateResult(isOK, deviationPercent) {
+function updateResult(isOK, deviationPercent, bodyAngle) {
   const resultEl = elements.result();
   resultEl.textContent = isOK ? "OK" : "NG";
   resultEl.className = `result ${isOK ? "result-ok" : "result-ng"}`;
 
   elements.deviation().textContent = `ずれ量: ${deviationPercent}%`;
+  
+  const angleEl = document.getElementById("bodyAngle");
+  if (angleEl) {
+    const angleValue = bodyAngle.toFixed(1);
+    const direction = bodyAngle >= 0 ? "前傾" : "後傾";
+    angleEl.textContent = `体の角度: ${Math.abs(angleValue)}° ${direction}`;
+  }
 }
 
 function updateGuide(message, type = "warning") {
@@ -388,6 +403,11 @@ function clearResult() {
   resultEl.textContent = "---";
   resultEl.className = "result result-waiting";
   elements.deviation().textContent = "ずれ量: ---%";
+  
+  const angleEl = document.getElementById("bodyAngle");
+  if (angleEl) {
+    angleEl.textContent = "体の角度: ---°";
+  }
 }
 
 // =============================================================================
@@ -456,8 +476,9 @@ function detectPose() {
   } else if (keyPoints) {
     const smoothed = smoothPoints(keyPoints);
     const judgment = judgeAlignment(smoothed.head, smoothed.hip, smoothed.ankle);
+    const bodyAngle = computeBodyAngle(smoothed.head, smoothed.ankle);
 
-    updateResult(judgment.isOK, judgment.deviationPercent);
+    updateResult(judgment.isOK, judgment.deviationPercent, bodyAngle);
 
     if (judgment.isOK) {
       updateGuide("姿勢が整っています", "ok");
