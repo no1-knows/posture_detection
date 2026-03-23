@@ -11,7 +11,7 @@ import {
 const CONFIG = {
   SMOOTHING_FRAMES: 5,
   DEVIATION_THRESHOLD: 0.08,
-  MIN_VISIBILITY: 0.5,
+  MIN_VISIBILITY: 0.3,
   NG_SOUND_COOLDOWN_MS: 1000,
   NG_SOUND_FREQUENCY: 440,
   NG_SOUND_DURATION: 0.15
@@ -310,9 +310,13 @@ function checkSideView(landmarks) {
   const rightShoulder = landmarks[LANDMARK_INDEX.RIGHT_SHOULDER];
 
   if (!leftShoulder || !rightShoulder) return true;
+  
+  const leftVis = leftShoulder.visibility ?? 0;
+  const rightVis = rightShoulder.visibility ?? 0;
+  if (leftVis < 0.3 || rightVis < 0.3) return true;
 
   const shoulderXDiff = Math.abs(leftShoulder.x - rightShoulder.x);
-  return shoulderXDiff < 0.15;
+  return shoulderXDiff < 0.25;
 }
 
 function getGuideMessage(landmarks, keyPoints) {
@@ -325,11 +329,15 @@ function getGuideMessage(landmarks, keyPoints) {
   }
 
   if (!keyPoints) {
-    return { message: "頭・腰・足首が見えるように立ってください", type: "warning" };
+    const head = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_EAR, LANDMARK_INDEX.RIGHT_EAR);
+    const hip = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.RIGHT_HIP);
+    const ankle = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_ANKLE, LANDMARK_INDEX.RIGHT_ANKLE);
+    const visInfo = `耳:${(head.visibility*100).toFixed(0)} 腰:${(hip.visibility*100).toFixed(0)} 足:${(ankle.visibility*100).toFixed(0)}`;
+    return { message: `頭・腰・足首が見えるように (${visInfo})`, type: "warning" };
   }
 
   if (pointsBuffer.length < CONFIG.SMOOTHING_FRAMES) {
-    return { message: "姿勢を安定させてください...", type: "waiting" };
+    return { message: `姿勢を安定させてください... (${pointsBuffer.length}/${CONFIG.SMOOTHING_FRAMES})`, type: "waiting" };
   }
 
   return null;
