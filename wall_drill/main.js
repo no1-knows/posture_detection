@@ -468,8 +468,11 @@ function playNGSound() {
 // メインループ
 // =============================================================================
 
+let frameCount = 0;
+
 function detectPose() {
   if (!poseLandmarker || !video || video.readyState < 2) {
+    updateDebug(`待機中: landmarker=${!!poseLandmarker}, video=${!!video}, readyState=${video?.readyState}`);
     requestAnimationFrame(detectPose);
     return;
   }
@@ -480,34 +483,42 @@ function detectPose() {
   }
 
   lastVideoTime = video.currentTime;
+  frameCount++;
 
-  const result = poseLandmarker.detectForVideo(video, performance.now());
-  const landmarks = result.landmarks[0] ?? null;
+  try {
+    const result = poseLandmarker.detectForVideo(video, performance.now());
+    const landmarks = result.landmarks[0] ?? null;
 
-  drawOverlay(landmarks);
+    const landmarkCount = landmarks ? landmarks.length : 0;
+    updateDebug(`フレーム:${frameCount} ランドマーク:${landmarkCount}`);
 
-  const keyPoints = extractKeyPoints(landmarks);
-  const guideInfo = getGuideMessage(landmarks, keyPoints);
+    drawOverlay(landmarks);
 
-  if (guideInfo) {
-    updateGuide(guideInfo.message, guideInfo.type);
-    clearResult();
-    if (guideInfo.type === "warning") {
-      pointsBuffer = [];
+    const keyPoints = extractKeyPoints(landmarks);
+    const guideInfo = getGuideMessage(landmarks, keyPoints);
+
+    if (guideInfo) {
+      updateGuide(guideInfo.message, guideInfo.type);
+      clearResult();
+      if (guideInfo.type === "warning") {
+        pointsBuffer = [];
+      }
+    } else if (keyPoints) {
+      const smoothed = smoothPoints(keyPoints);
+      const judgment = judgeAlignment(smoothed.head, smoothed.hip, smoothed.ankle);
+      const bodyAngle = computeBodyAngle(smoothed.head, smoothed.ankle);
+
+      updateResult(judgment.isOK, judgment.deviationPercent, bodyAngle);
+
+      if (judgment.isOK) {
+        updateGuide("姿勢が整っています", "ok");
+      } else {
+        updateGuide("腰の位置を調整してください", "warning");
+        playNGSound();
+      }
     }
-  } else if (keyPoints) {
-    const smoothed = smoothPoints(keyPoints);
-    const judgment = judgeAlignment(smoothed.head, smoothed.hip, smoothed.ankle);
-    const bodyAngle = computeBodyAngle(smoothed.head, smoothed.ankle);
-
-    updateResult(judgment.isOK, judgment.deviationPercent, bodyAngle);
-
-    if (judgment.isOK) {
-      updateGuide("姿勢が整っています", "ok");
-    } else {
-      updateGuide("腰の位置を調整してください", "warning");
-      playNGSound();
-    }
+  } catch (error) {
+    updateDebug(`検出エラー: ${error.message}`);
   }
 
   requestAnimationFrame(detectPose);
@@ -517,27 +528,48 @@ function detectPose() {
 // エントリーポイント
 // =============================================================================
 
+function updateDebug(text) {
+  const debugEl = document.getElementById("debug");
+  if (debugEl) debugEl.textContent = text;
+}
+
 async function main() {
-  video = elements.video();
-  canvas = elements.canvas();
-  ctx = canvas.getContext("2d");
+  try {
+    updateDebug("初期化開始...");
+    
+    video = elements.video();
+    canvas = elements.canvas();
+    ctx = canvas.getContext("2d");
 
-  const cameraOK = await initCamera();
-  if (!cameraOK) return;
+    updateDebug("カメラ起動中...");
+    const cameraOK = await initCamera();
+    if (!cameraOK) {
+      updateDebug("カメラ起動失敗");
+      return;
+    }
+    updateDebug("カメラOK。モデル読み込み中...");
 
-  const landmarkerOK = await initPoseLandmarker();
-  if (!landmarkerOK) return;
+    const landmarkerOK = await initPoseLandmarker();
+    if (!landmarkerOK) {
+      updateDebug("モデル読み込み失敗");
+      return;
+    }
+    updateDebug("モデルOK。検出開始...");
 
-  elements.loading().classList.add("hidden");
-  updateGuide("横を向いて全身が映るように立ってください");
+    elements.loading().classList.add("hidden");
+    updateGuide("横を向いて全身が映るように立ってください");
 
-  window.matchMedia("(orientation: portrait)").addEventListener("change", async () => {
-    video.srcObject?.getTracks().forEach(t => t.stop());
-    pointsBuffer = [];
-    await initCamera();
-  });
+    window.matchMedia("(orientation: portrait)").addEventListener("change", async () => {
+      video.srcObject?.getTracks().forEach(t => t.stop());
+      pointsBuffer = [];
+      await initCamera();
+    });
 
-  detectPose();
+    detectPose();
+  } catch (error) {
+    updateDebug(`エラー: ${error.message}`);
+    console.error(error);
+  }
 }
 
 main();

@@ -156,6 +156,14 @@ main {
   color: #ef4444;
 }
 
+.debug {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-family: monospace;
+  word-break: break-all;
+}
+
 .camera-select-container {
   margin-top: 1rem;
   color: #94a3b8;
