@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wall Drill 姿勢チェック</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Wall Drill 姿勢チェック</h1>
+    </header>
+
+    <main>
+      <div class="video-container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <div id="loading" class="loading">
+          <p>モデルを読み込み中...</p>
+        </div>
+      </div>
+
+      <div class="result-container">
+        <div id="result" class="result result-waiting">---</div>
+        <div id="deviation" class="deviation">ずれ量: ---%</div>
+        <div id="guide" class="guide">カメラを起動しています...</div>
+      </div>
+    </main>
+
+    <footer>
+      <p>横から全身が映るように立ってください</p>
+    </footer>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
