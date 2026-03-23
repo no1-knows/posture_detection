@@ -212,7 +212,9 @@ function smoothPoints(newPoints) {
   if (pointsBuffer.length > CONFIG.SMOOTHING_FRAMES) {
     pointsBuffer.shift();
   }
+}
 
+function getSmoothedPoints() {
   const avgHead = { x: 0, y: 0 };
   const avgHip = { x: 0, y: 0 };
   const avgAnkle = { x: 0, y: 0 };
@@ -317,30 +319,6 @@ function checkSideView(landmarks) {
 
   const shoulderXDiff = Math.abs(leftShoulder.x - rightShoulder.x);
   return shoulderXDiff < 0.25;
-}
-
-function getGuideMessage(landmarks, keyPoints) {
-  if (!landmarks || landmarks.length === 0) {
-    return { message: "体全体が映るように立ってください", type: "warning" };
-  }
-
-  if (!checkSideView(landmarks)) {
-    return { message: "カメラに対して横を向いてください", type: "warning" };
-  }
-
-  if (!keyPoints) {
-    const head = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_EAR, LANDMARK_INDEX.RIGHT_EAR);
-    const hip = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.RIGHT_HIP);
-    const ankle = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_ANKLE, LANDMARK_INDEX.RIGHT_ANKLE);
-    const visInfo = `耳:${(head.visibility*100).toFixed(0)} 腰:${(hip.visibility*100).toFixed(0)} 足:${(ankle.visibility*100).toFixed(0)}`;
-    return { message: `頭・腰・足首が見えるように (${visInfo})`, type: "warning" };
-  }
-
-  if (pointsBuffer.length < CONFIG.SMOOTHING_FRAMES) {
-    return { message: `姿勢を安定させてください... (${pointsBuffer.length}/${CONFIG.SMOOTHING_FRAMES})`, type: "waiting" };
-  }
-
-  return null;
 }
 
 // =============================================================================
@@ -495,26 +473,42 @@ function detectPose() {
     drawOverlay(landmarks);
 
     const keyPoints = extractKeyPoints(landmarks);
-    const guideInfo = getGuideMessage(landmarks, keyPoints);
-
-    if (guideInfo) {
-      updateGuide(guideInfo.message, guideInfo.type);
+    
+    if (!landmarks || landmarks.length === 0) {
+      updateGuide("体全体が映るように立ってください", "warning");
       clearResult();
-      if (guideInfo.type === "warning") {
-        pointsBuffer = [];
-      }
-    } else if (keyPoints) {
-      const smoothed = smoothPoints(keyPoints);
-      const judgment = judgeAlignment(smoothed.head, smoothed.hip, smoothed.ankle);
-      const bodyAngle = computeBodyAngle(smoothed.head, smoothed.ankle);
-
-      updateResult(judgment.isOK, judgment.deviationPercent, bodyAngle);
-
-      if (judgment.isOK) {
-        updateGuide("姿勢が整っています", "ok");
+      pointsBuffer = [];
+    } else if (!checkSideView(landmarks)) {
+      updateGuide("カメラに対して横を向いてください", "warning");
+      clearResult();
+      pointsBuffer = [];
+    } else if (!keyPoints) {
+      const head = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_EAR, LANDMARK_INDEX.RIGHT_EAR);
+      const hip = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.RIGHT_HIP);
+      const ankle = getBestPoint(landmarks, LANDMARK_INDEX.LEFT_ANKLE, LANDMARK_INDEX.RIGHT_ANKLE);
+      const visInfo = `耳:${(head.visibility*100).toFixed(0)} 腰:${(hip.visibility*100).toFixed(0)} 足:${(ankle.visibility*100).toFixed(0)}`;
+      updateGuide(`頭・腰・足首が見えるように (${visInfo})`, "warning");
+      clearResult();
+      pointsBuffer = [];
+    } else {
+      smoothPoints(keyPoints);
+      
+      if (pointsBuffer.length < CONFIG.SMOOTHING_FRAMES) {
+        updateGuide(`姿勢を安定させてください... (${pointsBuffer.length}/${CONFIG.SMOOTHING_FRAMES})`, "waiting");
+        clearResult();
       } else {
-        updateGuide("腰の位置を調整してください", "warning");
-        playNGSound();
+        const smoothed = getSmoothedPoints();
+        const judgment = judgeAlignment(smoothed.head, smoothed.hip, smoothed.ankle);
+        const bodyAngle = computeBodyAngle(smoothed.head, smoothed.ankle);
+
+        updateResult(judgment.isOK, judgment.deviationPercent, bodyAngle);
+
+        if (judgment.isOK) {
+          updateGuide("姿勢が整っています", "ok");
+        } else {
+          updateGuide("腰の位置を調整してください", "warning");
+          playNGSound();
+        }
       }
     }
   } catch (error) {
