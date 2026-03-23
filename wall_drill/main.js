@@ -67,10 +67,15 @@ async function getAvailableCameras() {
 
 async function initCamera(deviceId = null) {
   try {
+    const isPortrait = window.matchMedia("(orientation: portrait)").matches;
     const constraints = {
       video: deviceId
         ? { deviceId: { exact: deviceId }, width: 640, height: 480 }
-        : { facingMode: "environment", width: 640, height: 480 }
+        : { 
+            facingMode: "environment",
+            width: isPortrait ? 480 : 640,
+            height: isPortrait ? 640 : 480
+          }
     };
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = stream;
@@ -78,6 +83,7 @@ async function initCamera(deviceId = null) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     
+    updateVideoContainerAspect();
     await populateCameraSelect();
     return true;
   } catch (error) {
@@ -85,6 +91,14 @@ async function initCamera(deviceId = null) {
     updateGuide("カメラの起動に失敗しました。権限を確認してください。", "error");
     return false;
   }
+}
+
+function updateVideoContainerAspect() {
+  const container = document.querySelector(".video-container");
+  if (!container || !video.videoWidth) return;
+  
+  const aspectRatio = video.videoWidth / video.videoHeight;
+  container.style.aspectRatio = `${aspectRatio}`;
 }
 
 async function populateCameraSelect() {
@@ -508,6 +522,12 @@ async function main() {
 
   elements.loading().classList.add("hidden");
   updateGuide("横を向いて全身が映るように立ってください");
+
+  window.matchMedia("(orientation: portrait)").addEventListener("change", async () => {
+    video.srcObject?.getTracks().forEach(t => t.stop());
+    pointsBuffer = [];
+    await initCamera();
+  });
 
   detectPose();
 }
